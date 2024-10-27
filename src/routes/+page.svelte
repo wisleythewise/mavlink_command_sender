@@ -2,25 +2,37 @@
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
 
-  let connectionString = "udp://127.0.0.1:14551";
+  let connectionString = "udpin:172.26.96.1:14550";
   let targetSystem = 1;
-  let targetComponent = 0;
-  let messageId = 269;
+  let targetComponent = 1;
+  let messageId = 22;
   let connectionStatus = null;
-
-  // Store responses as an array
   let responses = [];
 
-  // URL for the logo image
-  let logoUrl = '../../avalor_logo.png';
+  // MAVLink parameters
+  let param1 = 0.0;
+  let param2 = 0.0;
+  let param3 = 0.0;
+  let param4 = 0.0;
+  let param5 = 0.0;
+  let param6 = 0.0;
+  let param7 = 0.0;
 
-  // Load saved connection string if available
   onMount(() => {
     const savedString = localStorage.getItem("savedConnectionString");
     if (savedString) {
       connectionString = savedString;
     }
   });
+
+  function format_message(targetSystem, targetComponent, messageId, param1, param2, param3, param4, param5, param6, param7) {
+  return `Sent Message:
+  - Target System: ${targetSystem}
+  - Target Component: ${targetComponent}
+  - Message ID: ${messageId}
+  - Params: [${param1}, ${param2}, ${param3}, ${param4}, ${param5}, ${param6}, ${param7}]
+  `;
+}
 
   async function checkConnection() {
     try {
@@ -34,36 +46,49 @@
     }
   }
 
-  async function sendMavlinkMessage() {
-    const storedConnectionString = localStorage.getItem("savedConnectionString") || connectionString;
-    const timestamp = new Date().toLocaleString();
-
-    try {
-      const message = await invoke('send_mavlink_message', {
-        targetSystem,
-        targetComponent,
-        messageId,
-        connectionString: storedConnectionString
-      });
-      addResponse(`Message sent -> Response: ${message}`, timestamp);
-    } catch (error) {
-      addResponse(`Message sent -> Error: ${error.message}`, timestamp);
-    }
-  }
-
-  // Function to add a response with timestamp to the responses list
   function addResponse(text, timestamp = new Date().toLocaleString()) {
     responses = [{ text, timestamp }, ...responses];
   }
+
+async function sendMavlinkMessage() {
+  const storedConnectionString = localStorage.getItem("savedConnectionString") || connectionString;
+  const timestamp = new Date().toLocaleString();
+
+  try {
+    const message = await invoke('send_mavlink_message', {
+      targetSystem,
+      targetComponent,
+      commandId: messageId,
+      param1,
+      param2,
+      param3,
+      param4,
+      param5,
+      param6,
+      param7,
+      connectionString: storedConnectionString
+    });
+
+    // Format the sent message details and add it to responses
+    const formattedMessage = format_message(targetSystem, targetComponent, messageId, param1, param2, param3, param4, param5, param6, param7);
+    addResponse(`${formattedMessage}\nResponse: ${message}`, timestamp);
+
+  } catch (error) {
+    const formattedMessage = format_message(targetSystem, targetComponent, messageId, param1, param2, param3, param4, param5, param6, param7);
+    addResponse(`${formattedMessage}\n  Error: ${error}`, timestamp);
+  }
+}
+
+
+let logoUrl = "../../avalor_logo.png"
 </script>
 
 <img src={logoUrl} alt="Logo" class="logo" />
 
 <div class="container">
-  <!-- Left Column: Form -->
+  <!-- Left Column: Connection and Main Form -->
   <div class="form-section">
     <h1>Drone MAVLink Control</h1>
-
     <label>
       Connection String:
       <input type="text" bind:value={connectionString} placeholder="Enter connection string" />
@@ -76,27 +101,27 @@
         <span style="color: red;">● Not Connected</span>
       {/if}
     </span>
-
-    <!-- Divider -->
     <hr class="divider" />
-
-    <!-- MAVLink Command Form -->
     <form on:submit|preventDefault={sendMavlinkMessage}>
-      <label>
-        Target System:
-        <input type="number" bind:value={targetSystem} min="1" />
-      </label>
-      <label>
-        Target Component:
-        <input type="number" bind:value={targetComponent} min="0" />
-      </label>
-      <label>
-        Message ID:
-        <input type="number" bind:value={messageId} min="1" />
-      </label>
+      <label>Target System: <input type="number" bind:value={targetSystem} min="0" /></label>
+      <label>Target Component: <input type="number" bind:value={targetComponent} min="0" /></label>
+      <label>Message ID: <input type="number" bind:value={messageId} min="1" /></label>
       <button type="submit">Send Message</button>
     </form>
   </div>
+
+  <!-- Middle Column: MAVLink Parameters -->
+<div class="param-section">
+  <h2>Command Parameters</h2>
+  <input type="number" bind:value={param1} placeholder="Param 1" />
+  <input type="number" bind:value={param2} placeholder="Param 2" />
+  <input type="number" bind:value={param3} placeholder="Param 3" />
+  <input type="number" bind:value={param4} placeholder="Param 4" />
+  <input type="number" bind:value={param5} placeholder="Param 5" />
+  <input type="number" bind:value={param6} placeholder="Param 6" />
+  <input type="number" bind:value={param7} placeholder="Param 7" />
+</div>
+
 
   <!-- Right Column: Console Output -->
   <div class="console-section">
@@ -110,7 +135,53 @@
 </div>
 
 <style>
-  /* Dark blue background for the whole app */
+  /* Styling remains the same as before */
+  .container {
+    display: flex;
+    gap: 20px;
+    padding: 0 5%;
+  }
+  .form-section,  .console-section {
+    flex: 1;
+    background-color: #003366;
+    padding: 20px;
+    border-radius: 8px;
+    color: white;
+  }
+  .console-section { background-color: black; }
+
+
+  /* Styling for the parameter section */
+.param-section {
+  flex: 1;
+  background-color: #004080;
+  padding: 20px;
+  padding-right: 50px;
+  border-radius: 8px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Style each parameter input */
+.param-section input[type="number"] {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #f0f8ff;
+  color: black;
+  font-size: 14px;
+  width: 100%;
+}
+
+/* Placeholder text color for better visibility */
+.param-section input::placeholder {
+  color: #666;
+}
+
+
+    /* Dark blue background for the whole app */
   :global(body) {
     background-color: #001f3f;
     color: white;
@@ -224,3 +295,4 @@
     border-color: #1e90ff;
   }
 </style>
+
