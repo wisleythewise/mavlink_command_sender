@@ -10,6 +10,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use tauri::Emitter;
+
 // The global connection
 lazy_static! {
     static ref GLOBAL_CONNECTION: Arc<Mutex<Option<Box<dyn MavConnection<MavMessage> + Send + Sync>>>> =
@@ -78,6 +80,7 @@ fn get_command_from_id(command_id: u16) -> Option<MavCmd> {
 
 #[tauri::command]
 async fn send_mavlink_message(
+    window: tauri::Window,
     target_system: u8,
     target_component: u8,
     command_id: u16,
@@ -96,13 +99,14 @@ async fn send_mavlink_message(
     let connection = match &mut *global_conn {
         Some(conn) => conn.as_mut(),
         None => {
-            println!("Connection not established");
+            window.emit("log", "Connection not established").unwrap();
             return Err("Connection not established".to_string());
         }
     };
 
     // Ensure we are receiving messages
-    println!("Waiting for HEARTBEAT...");
+    window.emit("log", "Waiting for HEARTBEAT...").unwrap();
+
     let mut heartbeat_received = false;
     let timeout = Duration::from_secs(5);
     let start_time = Instant::now();
@@ -110,21 +114,23 @@ async fn send_mavlink_message(
     while !heartbeat_received && start_time.elapsed() < timeout {
         match connection.recv() {
             Ok((header, received_msg)) => {
-                if let MavMessage::HEARTBEAT(heartbeat) = received_msg {
-                    println!(
-                        "Received HEARTBEAT from system {}, component {}",
-                        header.system_id, header.component_id
-                    );
+                if let MavMessage::HEARTBEAT(_heartbeat) = received_msg {
+                    window
+                        .emit(
+                            "log",
+                            format!(
+                                "Received HEARTBEAT from system {}, component {}",
+                                header.system_id, header.component_id
+                            ),
+                        )
+                        .unwrap();
                     heartbeat_received = true;
-                } else {
-                    println!(
-                        "Received message from system {}, component {}: {:?}",
-                        header.system_id, header.component_id, received_msg
-                    );
                 }
             }
             Err(e) => {
-                println!("Error receiving message: {}", e);
+                window
+                    .emit("log", format!("Error receiving message: {}", e))
+                    .unwrap();
             }
         }
 
@@ -133,15 +139,38 @@ async fn send_mavlink_message(
     }
 
     if !heartbeat_received {
-        println!("Did not receive HEARTBEAT within timeout.");
+        window
+            .emit("log", "Did not receive HEARTBEAT within timeout.")
+            .unwrap();
     }
 
     // Proceed to send the command
     if let Some(mav_command) = get_command_from_id(command_id) {
-        println!(
-            "Converted command_id {} to mav_command {:?}",
-            command_id, mav_command
-        );
+        window
+            .emit(
+                "log",
+                format!(
+                    "Converted command_id {} to mav_command {:?}",
+                    command_id, mav_command
+                ),
+            )
+            .unwrap();
+
+        window
+            .emit(
+                "log",
+                format!("This is the target component {:?}", target_component),
+            )
+            .unwrap();
+        window
+            .emit(
+                "log",
+                format!("This is the target system {:?}", target_system),
+            )
+            .unwrap();
+        window
+            .emit("log", format!("This is mav command {:?}", mav_command))
+            .unwrap();
 
         let msg_data = COMMAND_LONG_DATA {
             target_system,
@@ -160,13 +189,15 @@ async fn send_mavlink_message(
         let msg = MavMessage::COMMAND_LONG(msg_data);
 
         // Send command
-        connection
-            .send_default(&msg)
-            .map_err(|e| format!("Failed to send message: {}", e))?;
-        println!("Message sent successfully");
+        connection.send_default(&msg).map_err(|e| {
+            let error_msg = format!("Failed to send message: {}", e);
+            window.emit("log", &error_msg).unwrap();
+            error_msg
+        })?;
+        window.emit("log", "Message sent successfully").unwrap();
 
         // Wait for COMMAND_ACK
-        let timeout = Duration::from_secs(15);
+        let timeout = Duration::from_secs(5);
         let start_time = Instant::now();
 
         loop {
@@ -176,25 +207,26 @@ async fn send_mavlink_message(
 
             // Receive message
             match connection.recv() {
-                Ok((header, received_msg)) => {
-                    println!(
-                        "Received message from system {}, component {}: {:?}",
-                        header.system_id, header.component_id, received_msg
-                    );
-
+                Ok((_header, received_msg)) => {
                     // Check for COMMAND_ACK
                     if let MavMessage::COMMAND_ACK(command_ack) = received_msg {
-                        println!("Received COMMAND_ACK: {:?}", command_ack);
+                        window
+                            .emit("log", format!("Received COMMAND_ACK: {:?}", command_ack))
+                            .unwrap();
                         return Ok(format!("Command acknowledged: {:?}", command_ack));
                     }
 
                     // Check for STATUSTEXT
                     if let MavMessage::STATUSTEXT(statustext) = received_msg {
-                        println!("Received STATUSTEXT: {:?}", statustext);
+                        window
+                            .emit("log", format!("Received STATUSTEXT: {:?}", statustext))
+                            .unwrap();
                     }
                 }
                 Err(e) => {
-                    println!("Error receiving message: {}", e);
+                    window
+                        .emit("log", format!("Error receiving message: {}", e))
+                        .unwrap();
                 }
             }
 
@@ -202,6 +234,7 @@ async fn send_mavlink_message(
             sleep(Duration::from_millis(100));
         }
     } else {
+        window.emit("log", "Invalid command_id provided.").unwrap();
         return Err("Invalid command_id provided.".to_string());
     }
 }

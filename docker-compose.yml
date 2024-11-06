@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  tauri_app:
+    build:
+      context: .       # Build from the current directory
+      dockerfile: Dockerfile
+    ports:
+      - "1420:1420"    # Tauri dev server port
+      - "14550:14550"  # MAVLink or other specific port you want to expose
+    volumes:
+      - .:/app         # Mount the current directory to /app inside the container
+    command: npx tauri dev

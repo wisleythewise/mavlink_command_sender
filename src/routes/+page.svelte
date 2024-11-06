@@ -1,6 +1,7 @@
 <script>
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
 
   let connectionString = "udpin:172.26.96.1:14550";
   let targetSystem = 1;
@@ -23,20 +24,36 @@
     if (savedString) {
       connectionString = savedString;
     }
+
+    // Listen for "log" events from the backend and add them to responses
+    listen("log", (event) => {
+      addResponse(event.payload); // Append the payload from the log event
+    });
   });
 
-  function format_message(targetSystem, targetComponent, messageId, param1, param2, param3, param4, param5, param6, param7) {
-  return `Sent Message:
+  function format_message(
+    targetSystem,
+    targetComponent,
+    messageId,
+    param1,
+    param2,
+    param3,
+    param4,
+    param5,
+    param6,
+    param7
+  ) {
+    return `Sent Message:
   - Target System: ${targetSystem}
   - Target Component: ${targetComponent}
   - Message ID: ${messageId}
   - Params: [${param1}, ${param2}, ${param3}, ${param4}, ${param5}, ${param6}, ${param7}]
   `;
-}
+  }
 
   async function checkConnection() {
     try {
-      await invoke('create_connection', { connectionString });
+      await invoke("create_connection", { connectionString });
       connectionStatus = true;
       localStorage.setItem("savedConnectionString", connectionString);
       addResponse("Connection successful");
@@ -50,37 +67,58 @@
     responses = [{ text, timestamp }, ...responses];
   }
 
-async function sendMavlinkMessage() {
-  const storedConnectionString = localStorage.getItem("savedConnectionString") || connectionString;
-  const timestamp = new Date().toLocaleString();
+  async function sendMavlinkMessage() {
+    const storedConnectionString =
+      localStorage.getItem("savedConnectionString") || connectionString;
+    const timestamp = new Date().toLocaleString();
 
-  try {
-    const message = await invoke('send_mavlink_message', {
-      targetSystem,
-      targetComponent,
-      commandId: messageId,
-      param1,
-      param2,
-      param3,
-      param4,
-      param5,
-      param6,
-      param7,
-      connectionString: storedConnectionString
-    });
+    try {
+      const message = await invoke("send_mavlink_message", {
+        targetSystem,
+        targetComponent,
+        commandId: messageId,
+        param1,
+        param2,
+        param3,
+        param4,
+        param5,
+        param6,
+        param7,
+        connectionString: storedConnectionString,
+      });
 
-    // Format the sent message details and add it to responses
-    const formattedMessage = format_message(targetSystem, targetComponent, messageId, param1, param2, param3, param4, param5, param6, param7);
-    addResponse(`${formattedMessage}\nResponse: ${message}`, timestamp);
-
-  } catch (error) {
-    const formattedMessage = format_message(targetSystem, targetComponent, messageId, param1, param2, param3, param4, param5, param6, param7);
-    addResponse(`${formattedMessage}\n  Error: ${error}`, timestamp);
+      // Format the sent message details and add it to responses
+      const formattedMessage = format_message(
+        targetSystem,
+        targetComponent,
+        messageId,
+        param1,
+        param2,
+        param3,
+        param4,
+        param5,
+        param6,
+        param7
+      );
+      addResponse(`${formattedMessage}\nResponse: ${message}`, timestamp);
+    } catch (error) {
+      const formattedMessage = format_message(
+        targetSystem,
+        targetComponent,
+        messageId,
+        param1,
+        param2,
+        param3,
+        param4,
+        param5,
+        param6,
+        param7
+      );
+      addResponse(`${formattedMessage}\n  Error: ${error}`, timestamp);
+    }
   }
-}
 
-
-let logoUrl = "../../avalor_logo.png"
+  let logoUrl = "../../avalor_logo.png";
 </script>
 
 <img src={logoUrl} alt="Logo" class="logo" />
@@ -91,7 +129,11 @@ let logoUrl = "../../avalor_logo.png"
     <h1>Drone MAVLink Control</h1>
     <label>
       Connection String:
-      <input type="text" bind:value={connectionString} placeholder="Enter connection string" />
+      <input
+        type="text"
+        bind:value={connectionString}
+        placeholder="Enter connection string"
+      />
       <button on:click={checkConnection}>Check Connection</button>
     </label>
     <span>
@@ -103,25 +145,42 @@ let logoUrl = "../../avalor_logo.png"
     </span>
     <hr class="divider" />
     <form on:submit|preventDefault={sendMavlinkMessage}>
-      <label>Target System: <input type="number" bind:value={targetSystem} min="0" /></label>
-      <label>Target Component: <input type="number" bind:value={targetComponent} min="0" /></label>
-      <label>Message ID: <input type="number" bind:value={messageId} min="1" /></label>
+      <label
+        >Target System: <input
+          type="number"
+          bind:value={targetSystem}
+          min="0"
+        /></label
+      >
+      <label
+        >Target Component: <input
+          type="number"
+          bind:value={targetComponent}
+          min="0"
+        /></label
+      >
+      <label
+        >Message ID: <input
+          type="number"
+          bind:value={messageId}
+          min="1"
+        /></label
+      >
       <button type="submit">Send Message</button>
     </form>
   </div>
 
   <!-- Middle Column: MAVLink Parameters -->
-<div class="param-section">
-  <h2>Command Parameters</h2>
-  <input type="number" bind:value={param1} placeholder="Param 1" />
-  <input type="number" bind:value={param2} placeholder="Param 2" />
-  <input type="number" bind:value={param3} placeholder="Param 3" />
-  <input type="number" bind:value={param4} placeholder="Param 4" />
-  <input type="number" bind:value={param5} placeholder="Param 5" />
-  <input type="number" bind:value={param6} placeholder="Param 6" />
-  <input type="number" bind:value={param7} placeholder="Param 7" />
-</div>
-
+  <div class="param-section">
+    <h2>Command Parameters</h2>
+    <input type="number" bind:value={param1} placeholder="Param 1" />
+    <input type="number" bind:value={param2} placeholder="Param 2" />
+    <input type="number" bind:value={param3} placeholder="Param 3" />
+    <input type="number" bind:value={param4} placeholder="Param 4" />
+    <input type="number" bind:value={param5} placeholder="Param 5" />
+    <input type="number" bind:value={param6} placeholder="Param 6" />
+    <input type="number" bind:value={param7} placeholder="Param 7" />
+  </div>
 
   <!-- Right Column: Console Output -->
   <div class="console-section">
@@ -141,47 +200,48 @@ let logoUrl = "../../avalor_logo.png"
     gap: 20px;
     padding: 0 5%;
   }
-  .form-section,  .console-section {
+  .form-section,
+  .console-section {
     flex: 1;
     background-color: #003366;
     padding: 20px;
     border-radius: 8px;
     color: white;
   }
-  .console-section { background-color: black; }
-
+  .console-section {
+    background-color: black;
+  }
 
   /* Styling for the parameter section */
-.param-section {
-  flex: 1;
-  background-color: #004080;
-  padding: 20px;
-  padding-right: 50px;
-  border-radius: 8px;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+  .param-section {
+    flex: 1;
+    background-color: #004080;
+    padding: 20px;
+    padding-right: 50px;
+    border-radius: 8px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
 
-/* Style each parameter input */
-.param-section input[type="number"] {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background-color: #f0f8ff;
-  color: black;
-  font-size: 14px;
-  width: 100%;
-}
+  /* Style each parameter input */
+  .param-section input[type="number"] {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f0f8ff;
+    color: black;
+    font-size: 14px;
+    width: 100%;
+  }
 
-/* Placeholder text color for better visibility */
-.param-section input::placeholder {
-  color: #666;
-}
+  /* Placeholder text color for better visibility */
+  .param-section input::placeholder {
+    color: #666;
+  }
 
-
-    /* Dark blue background for the whole app */
+  /* Dark blue background for the whole app */
   :global(body) {
     background-color: #001f3f;
     color: white;
@@ -280,7 +340,8 @@ let logoUrl = "../../avalor_logo.png"
   }
 
   /* Input Styling */
-  input[type="text"], input[type="number"] {
+  input[type="text"],
+  input[type="number"] {
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -290,9 +351,9 @@ let logoUrl = "../../avalor_logo.png"
     margin-top: 5px;
   }
 
-  input[type="text"]:focus, input[type="number"]:focus {
+  input[type="text"]:focus,
+  input[type="number"]:focus {
     outline: none;
     border-color: #1e90ff;
   }
 </style>
-
