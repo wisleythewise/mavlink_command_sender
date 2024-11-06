@@ -133,9 +133,6 @@ async fn send_mavlink_message(
                     .unwrap();
             }
         }
-
-        // Sleep to prevent busy-waiting
-        sleep(Duration::from_millis(100));
     }
 
     if !heartbeat_received {
@@ -197,7 +194,7 @@ async fn send_mavlink_message(
         window.emit("log", "Message sent successfully").unwrap();
 
         // Wait for COMMAND_ACK
-        let timeout = Duration::from_secs(5);
+        let timeout = Duration::from_secs(15);
         let start_time = Instant::now();
 
         loop {
