@@ -25,7 +25,7 @@
 
   async function backendSetup() {
     try {
-      const response = await invoke("my_custom_command");
+      const response = await invoke("backend_rev");
       console.log("Response from Rust:", response);
     } catch (error) {
       console.error("Failed to invoke Rust function:", error);
@@ -40,12 +40,17 @@
 
     // Listen for "log" events from the backend and add them to responses
     listen("log", (event) => {
-      addResponse(event.payload, responses); // Append the payload from the log event
+      addResponse(event.payload); // Append the payload from the log event
     });
     // Listen for "log" events from the backend and add them to responses
     listen("debug_log", (event) => {
-      addResponse(event.payload, debugResponses); // Append the payload from the log event
+      addDebugResponse(event.payload); // Append the payload from the log event
     });
+
+    addResponse("Connection failed");
+
+    console.log("These are the responses", responses);
+    console.log("klasjdflkaj");
 
     backendSetup();
   });
@@ -75,25 +80,26 @@
       await invoke("create_connection", { connectionString });
       connectionStatus = true;
       localStorage.setItem("savedConnectionString", connectionString);
-      addResponse("Connection successful", responses);
+      addResponse("Connection successful");
     } catch (error) {
       connectionStatus = false;
-      addResponse("Connection failed", responses);
+      addDebugResponse("Connection failed");
     }
   }
 
-  function addResponse(
-    text,
-    responseArray,
-    timestamp = new Date().toLocaleString()
-  ) {
-    responseArray.unshift({ text, timestamp });
+  function addResponse(text) {
+    const timestamp = new Date().toLocaleString();
+    responses = [{ text, timestamp }, ...responses];
+  }
+  function addDebugResponse(text) {
+    const timestamp = new Date().toLocaleString();
+    debugResponses = [{ text, timestamp }, ...responses];
   }
 
   function filteredResponses(responseArray) {
     // Filter messages based on the search bar input
     return responseArray.filter((response) =>
-      response.text.toLowerCase().includes(filterText.toLowerCase())
+      response.text.toLowerCase().includes(debugFilterText.toLowerCase())
     );
   }
 
@@ -130,7 +136,7 @@
         param6,
         param7
       );
-      addResponse(`${formattedMessage}\nResponse: ${message}`, timestamp);
+      addResponse(`${formattedMessage}\nResponse: ${message}`);
     } catch (error) {
       const formattedMessage = format_message(
         targetSystem,
@@ -144,7 +150,7 @@
         param6,
         param7
       );
-      addResponse(`${formattedMessage}\n  Error: ${error}`, timestamp);
+      addResponse(`${formattedMessage}\n  Error: ${error}`);
     }
   }
 

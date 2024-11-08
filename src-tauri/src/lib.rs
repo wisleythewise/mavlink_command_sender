@@ -49,6 +49,9 @@ fn my_custom_command() -> String {
 // Backend setup function to initialize the channel and receiver task
 #[tauri::command]
 async fn backend_rev(window: tauri::Window) {
+    window.emit("log", "Starting up application").unwrap();
+    window.emit("debug_log", "Starting up application").unwrap();
+
     let (tx, rx) = mpsc::channel(100);
     *CHANNEL_TX.lock().await = Some(tx);
 
@@ -62,9 +65,6 @@ async fn backend_rev(window: tauri::Window) {
 async fn receiver_task(mut rx: mpsc::Receiver<MavMessage>, window: tauri::Window) {
     while let Some(message) = rx.recv().await {
         match message {
-            MavMessage::HEARTBEAT(_) => {
-                window.emit("log", format!("Received HEARTBEAT")).unwrap();
-            }
             MavMessage::COMMAND_ACK(ack) => {
                 window
                     .emit("log", format!("Received COMMAND_ACK: {:?}", ack))
@@ -139,6 +139,7 @@ async fn send_mavlink_message(
     param6: f32,
     param7: f32,
 ) -> Result<String, String> {
+    println!("we zitten in de maclink");
     // Guard clause: Check if the connection is established
     let connection = GLOBAL_CONNECTION.lock().await;
     let connection = match &*connection {
@@ -177,11 +178,6 @@ async fn send_mavlink_message(
 
     window.emit("log", "Message sent successfully").unwrap();
     Ok("Message sent successfully".to_string())
-}
-
-async fn await_ack() -> Option<MavMessage> {
-    // This function could be more complete in handling channel messages
-    None
 }
 
 fn get_command_from_id(command_id: u16) -> Option<MavCmd> {
